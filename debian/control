@@ -1,0 +1,20 @@
+Source: fnx-bt-helper
+Section: misc
+Priority: optional
+Maintainer: Christian Schrötter <cs@fnx.li>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 4.5.0
+Vcs-Git: https://github.com/froonix/fnx-bt-helper.git
+Vcs-Browser: https://github.com/froonix/fnx-bt-helper
+
+Package: fnx-bt-helper
+Architecture: all
+Depends: ${misc:Depends}, systemd (>= 203), bluez, bash
+Description: Restores Bluetooth state after system wake-up
+ This package provides a systemd sleep hook script. It checks if
+ Bluetooth was powered on before the system enters suspend or hibernate
+ state. If it was, it automatically re-enables the Bluetooth controller
+ upon wake-up.
+ .
+ This serves as a workaround for systems where AutoEnable=false is set
+ in the BlueZ configuration file /etc/bluetooth/main.conf.

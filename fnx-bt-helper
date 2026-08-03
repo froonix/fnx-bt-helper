@@ -1,0 +1,83 @@
+#!/bin/bash
+set -euf -o pipefail
+
+STATE_FILE="/run/fnx-bluetooth.state"
+
+function usageMsg()
+{
+	cat <<EOF >&2
+Usage: $(basename "$0") pre|post
+
+This systemd sleep hook script restores Bluetooth state after system
+wake-up. It checks if Bluetooth was powered on before the system enters
+suspend or hibernate state. If it was, it automatically re-enables the
+Bluetooth controller upon wake-up.
+
+This serves as a workaround for systems where AutoEnable=false is set
+in the BlueZ configuration file /etc/bluetooth/main.conf.
+EOF
+	exit 1
+}
+
+function isBluetoothAvailable()
+{
+	bluetoothctl show &>/dev/null
+}
+
+function getBluetoothState()
+{
+	bluetoothctl show | grep -Fq "Powered: yes" && echo 1 || echo 0
+}
+
+function checkBluetoothPresence()
+{
+	local try=0
+
+	while [ "$try" -le 10 ]
+	do
+		if isBluetoothAvailable && [ "$try" -gt 0 ]
+		then
+			logMsg "Bluetooth device appeared after $try second(s)."
+			break
+		fi
+
+		((try++))||:
+		sleep 1
+	done
+
+	if ! isBluetoothAvailable
+	then
+		logMsg "Bluetooth device is not available. Aborting!"
+		exit
+	fi
+}
+
+function logMsg()
+{
+	logger -t "$(basename "$0")[$$]" -- "$*"
+}
+
+case "${1:-}" in
+	pre)
+		state=$(getBluetoothState)
+		printf %d "$state" > "$STATE_FILE"
+		logMsg "Bluetooth state ($state) saved."
+		;;
+
+	post)
+		if [ -f "$STATE_FILE" ] && [ "$(cat "$STATE_FILE")" -eq 1 ]
+		then
+			checkBluetoothPresence
+			logMsg "Re-enabling Bluetooth device after wake-up..."
+			bluetoothctl power on
+		else
+			logMsg "Bluetooth was not powered on before sleep. Skipping!"
+		fi
+
+		rm -f "$STATE_FILE"
+		;;
+
+	*)
+		usageMsg
+		;;
+esac

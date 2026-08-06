@@ -2,3 +2,17 @@
 
 %:
 	dh $@
+
+override_dh_auto_build:
+	for po in po/*.po; do \
+		lang=$$(basename $$po .po); \
+		msgfmt -o po/$$lang.mo $$po; \
+	done
+
+override_dh_install:
+	dh_install
+	
+	for mo in po/*.mo; do \
+		lang=$$(basename $$mo .mo); \
+		install -D -m 0644 $$mo debian/fnx-bt-toggle/usr/share/locale/$$lang/LC_MESSAGES/fnx-bt-toggle.mo; \
+	done

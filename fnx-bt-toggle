@@ -1,0 +1,94 @@
+#!/bin/bash
+set -euf -o pipefail
+
+function usageMsg()
+{
+	cat <<EOF >&2
+Usage: $(basename "$0")
+
+This command provides a simple command line utility to toggle the
+Bluetooth power state. It is specifically designed to work as a desktop
+environment keyboard shortcut and respects rfkill and BlueZ states.
+
+This serves as a workaround for systems where AutoEnable=false is set
+in the BlueZ configuration file /etc/bluetooth/main.conf.
+EOF
+	exit 1
+}
+
+function isBluetoothAvailable()
+{
+	bluetoothctl show &>/dev/null
+}
+
+function getBluetoothState()
+{
+	bluetoothctl show | grep -Fq "Powered: yes" && return 0 || return 1
+}
+
+function checkBluetoothPresence()
+{
+	local try=0
+
+	while [ "$try" -le 10 ]
+	do
+		if isBluetoothAvailable && [ "$try" -gt 0 ]
+		then
+			logMsg "Bluetooth device appeared after $try second(s)."
+			break
+		fi
+
+		((try++))||:
+		sleep 1
+	done
+
+	if ! isBluetoothAvailable
+	then
+		logMsg "Bluetooth device is not available. Aborting!"
+		exit
+	fi
+}
+
+function logMsg()
+{
+	logger -t "$(basename "$0")[$$]" -- "$*"
+}
+
+function notifyStatus()
+{
+	local args=()
+	local summary
+	local body
+
+	if [[ "${1:-}" == "on" ]]
+	then
+		args+=(-i "blueman")
+		body=$(gettext "Bluetooth enabled.")
+	else
+		args+=(-i "blueman-disabled")
+		body=$(gettext "Bluetooth disabled.")
+	fi
+
+	summary=$(basename "$0")
+	args+=("$summary" "$body")
+	notify-send "${args[@]}" ||:
+	return 0
+}
+
+export TEXTDOMAIN="fnx-bt-toggle"
+export TEXTDOMAINDIR="/usr/share/locale"
+command -v gettext &> /dev/null || function gettext() { printf '%s' "$1"; }
+[[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usageMsg
+
+if isBluetoothAvailable && getBluetoothState
+then
+	logMsg "Disabling Bluetooth..."
+	/usr/sbin/rfkill block bluetooth
+	notifyStatus off
+else
+	logMsg "Enabling Bluetooth..."
+	/usr/sbin/rfkill unblock bluetooth
+	checkBluetoothPresence
+	bluetoothctl power on
+	notifyStatus on
+fi

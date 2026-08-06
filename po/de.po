@@ -1,0 +1,5 @@
+msgid "Bluetooth enabled."
+msgstr "Bluetooth aktiviert."
+
+msgid "Bluetooth disabled."
+msgstr "Bluetooth deaktiviert."
